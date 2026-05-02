@@ -144,6 +144,7 @@ window.Arena = (function () {
         m.lastHit = now;
         hits++;
         popup(crit ? `${dmg}!` : String(dmg), m.x * TILE + TILE / 2, m.y * TILE + 10, crit ? "#ff7a8a" : "#ffe06b");
+        FX.burst(m.x * TILE + TILE / 2, m.y * TILE + TILE / 2, crit ? "#ff7a8a" : "#ffe06b", crit ? 14 : 7, { size: crit ? 4 : 2, maxLife: 500 });
         if (m.hp <= 0) onKill(m);
       }
     }
@@ -158,6 +159,7 @@ window.Arena = (function () {
     UI.log(`Defeated ${m.emoji} ${m.name}! +${m.exp} EXP, +🪙${m.gold}`, "good");
     popup(`+${m.exp} EXP`, m.x * TILE + TILE / 2, m.y * TILE - 4, "#9bffd0");
     popup(`+🪙${m.gold}`,  m.x * TILE + TILE / 2, m.y * TILE - 18, "#ffd84d");
+    FX.burst(m.x * TILE + TILE / 2, m.y * TILE + TILE / 2, "#fff080", 18, { size: 4, maxLife: 900, kind: "twinkle" });
     for (const [drop, chance] of Object.entries(m.drops || {})) {
       if (U.chance(chance)) {
         State.addItem(drop, 1);
@@ -193,9 +195,11 @@ window.Arena = (function () {
       Pet.adopt(target.id, target.name, target.level);
       UI.log(`Caught ${target.emoji} ${target.name}! Added to roster.`, "good");
       State.state.dex.caught[target.id] = true;
+      FX.burst(target.x * TILE + TILE / 2, target.y * TILE + TILE / 2, "#ffaaff", 22, { size: 4, maxLife: 1100, kind: "twinkle" });
     } else {
       UI.toast(`${target.name} broke free!`, "bad");
       target.flash = performance.now() + 300;
+      FX.burst(target.x * TILE + TILE / 2, target.y * TILE + TILE / 2, "#ffffff", 8, { size: 2, maxLife: 400 });
     }
   }
 
