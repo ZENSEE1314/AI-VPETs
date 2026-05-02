@@ -2,7 +2,7 @@
 // Player walks freely; pressing E/Space swings a melee attack that hits ALL
 // monsters within range. Monsters chase and bump-attack the player.
 window.Arena = (function () {
-  const COLS = 20, ROWS = 15, TILE = 32;
+  const COLS = 20, ROWS = 15, TILE = 48;
   const SPAWN_INTERVAL = 4000;       // spawn cooldown ms
   const MAX_MONSTERS = 6;
   const ATTACK_COOLDOWN = 300;       // ms
@@ -12,10 +12,15 @@ window.Arena = (function () {
   let active = false;
   let monsters = [];
   let lootDrops = [];
+  let popups = [];   // floating numbers/text
   let lastSpawn = 0;
   let lastAttack = 0;
   let attackFx = 0;
   let arenaMap = null;
+
+  function popup(text, x, y, color = "#ffe06b") {
+    popups.push({ text, x, y, color, born: performance.now() });
+  }
 
   const ARENA_MAP = [
     "TTTTTTTTTTTTTTTTTTTT",
@@ -58,6 +63,7 @@ window.Arena = (function () {
     active = true;
     monsters = [];
     lootDrops = [];
+    popups = [];
     arenaMap = decode(ARENA_MAP);
     lastSpawn = performance.now() - SPAWN_INTERVAL;
     UI.log("Entered the Wilds. Spam E/Space to attack. Walk off the bottom edge to leave.");
@@ -67,6 +73,7 @@ window.Arena = (function () {
     active = false;
     monsters = [];
     lootDrops = [];
+    popups = [];
   }
 
   function isActive() { return active; }
@@ -136,6 +143,7 @@ window.Arena = (function () {
         m.flash = now + 120;
         m.lastHit = now;
         hits++;
+        popup(crit ? `${dmg}!` : String(dmg), m.x * TILE + TILE / 2, m.y * TILE + 10, crit ? "#ff7a8a" : "#ffe06b");
         if (m.hp <= 0) onKill(m);
       }
     }
@@ -148,6 +156,8 @@ window.Arena = (function () {
     Pet.gainExp(m.exp);
     State.addGold(m.gold);
     UI.log(`Defeated ${m.emoji} ${m.name}! +${m.exp} EXP, +🪙${m.gold}`, "good");
+    popup(`+${m.exp} EXP`, m.x * TILE + TILE / 2, m.y * TILE - 4, "#9bffd0");
+    popup(`+🪙${m.gold}`,  m.x * TILE + TILE / 2, m.y * TILE - 18, "#ffd84d");
     for (const [drop, chance] of Object.entries(m.drops || {})) {
       if (U.chance(chance)) {
         State.addItem(drop, 1);
@@ -226,7 +236,7 @@ window.Arena = (function () {
             const wmul = (DATA.ELEMENT[m.element]?.[sp.element]) ?? 1.0;
             const dmg = Math.max(1, Math.round((m.atk * wmul - Pet.def(p) * 0.5) * U.rand(0.85, 1.15)));
             p.hp = U.clamp(p.hp - dmg, 0, p.maxHp);
-            UI.toast(`${m.name} hit you for ${dmg}`, "bad");
+            popup(`-${dmg}`, World.player.x * TILE + TILE / 2, World.player.y * TILE + 6, "#ff5c7a");
             if (p.hp <= 0) {
               p.hp = 1;
               const lost = Math.min(20, State.state.gold);
@@ -260,49 +270,91 @@ window.Arena = (function () {
 
   function render(ctx) {
     if (!active) return;
-    // Re-draw arena ground (overrides world's town tiles already replaced)
-    for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) {
-      // tiles drawn by world.js — we just overlay monsters/loot.
-    }
     const now = performance.now();
-    // Loot
-    ctx.font = "16px serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    const t = now / 1000;
+
+    // Monsters
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
     for (const m of monsters) {
       if (m.hp <= 0) continue;
       const px = m.x * TILE, py = m.y * TILE;
+      const cx = px + TILE / 2, cy = py + TILE / 2;
+      const bob = Math.sin(t * 2 + m.x + m.y) * 2;
+
       // shadow
-      ctx.fillStyle = "rgba(0,0,0,.3)";
-      ctx.beginPath(); ctx.ellipse(px + TILE / 2, py + TILE - 4, 9, 3, 0, 0, Math.PI * 2); ctx.fill();
-      // body flash
-      if (m.flash > now) {
-        ctx.fillStyle = "rgba(255,80,80,.4)";
-        ctx.fillRect(px + 4, py + 4, TILE - 8, TILE - 8);
+      ctx.fillStyle = "rgba(0,0,0,.32)";
+      ctx.beginPath(); ctx.ellipse(cx, py + TILE - 4, 16, 5, 0, 0, Math.PI * 2); ctx.fill();
+
+      // big monster sprite
+      const flash = m.flash > now;
+      ctx.font = "40px serif";
+      if (flash) {
+        ctx.save();
+        ctx.shadowColor = "#ff7a8a"; ctx.shadowBlur = 10;
       }
-      ctx.font = "20px serif"; ctx.fillStyle = "#fff";
-      ctx.fillText(m.emoji, px + TILE / 2, py + TILE / 2 + 2);
-      // HP bar
-      const w = TILE - 8, h = 3;
-      ctx.fillStyle = "#000"; ctx.fillRect(px + 4, py + 2, w, h);
-      ctx.fillStyle = m.hp / m.maxHp > 0.5 ? "#7cffb1" : m.hp / m.maxHp > 0.25 ? "#ffd76a" : "#ff7a8a";
-      ctx.fillRect(px + 4, py + 2, w * (m.hp / m.maxHp), h);
-      // tiny level
-      ctx.font = "8px monospace"; ctx.fillStyle = "#fff";
-      ctx.fillText("Lv" + m.level, px + TILE / 2, py + TILE - 2);
+      ctx.fillStyle = "#fff";
+      ctx.fillText(m.emoji, cx, cy + bob);
+      if (flash) ctx.restore();
+
+      // HP bar (chunky, MapleStory-ish)
+      const bw = TILE + 4, bh = 6;
+      const bx = cx - bw / 2, by = py - 12;
+      ctx.fillStyle = "#000"; ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
+      ctx.fillStyle = "#1c0a14"; ctx.fillRect(bx, by, bw, bh);
+      const ratio = m.hp / m.maxHp;
+      const grad = ctx.createLinearGradient(bx, by, bx, by + bh);
+      if (ratio > 0.5) { grad.addColorStop(0, "#9bffd0"); grad.addColorStop(1, "#1ca460"); }
+      else if (ratio > 0.25) { grad.addColorStop(0, "#ffe97a"); grad.addColorStop(1, "#d4a420"); }
+      else { grad.addColorStop(0, "#ff7088"); grad.addColorStop(1, "#c01030"); }
+      ctx.fillStyle = grad; ctx.fillRect(bx, by, bw * ratio, bh);
+
+      // name + level plate
+      const label = `Lv${m.level} ${m.name}`;
+      ctx.font = "bold 11px monospace";
+      const tw = ctx.measureText(label).width + 8;
+      ctx.fillStyle = "rgba(0,0,0,.6)"; ctx.fillRect(cx - tw / 2, by - 16, tw, 13);
+      ctx.fillStyle = "#fff"; ctx.fillText(label, cx, by - 9);
     }
-    // Player attack swing FX
+
+    // Attack swing arc
     if (attackFx > now) {
       const player = World.player;
-      ctx.strokeStyle = "rgba(255,230,120,.8)";
-      ctx.lineWidth = 2;
+      const cx = player.x * TILE + TILE / 2, cy = player.y * TILE + TILE / 2;
+      const fade = (attackFx - now) / 180;
+      ctx.strokeStyle = `rgba(255,230,120,${0.85 * fade})`;
+      ctx.lineWidth = 3;
       ctx.beginPath();
-      ctx.arc(player.x * TILE + TILE / 2, player.y * TILE + TILE / 2, ATTACK_RANGE * TILE, 0, Math.PI * 2);
+      ctx.arc(cx, cy, ATTACK_RANGE * TILE * (1.1 - fade * 0.2), 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.strokeStyle = `rgba(255,255,255,${0.7 * fade})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(cx, cy, ATTACK_RANGE * TILE * 0.95, 0, Math.PI * 2);
       ctx.stroke();
     }
-    // Banner
-    ctx.fillStyle = "rgba(0,0,0,.55)";
-    ctx.fillRect(0, ROWS * TILE - 18, COLS * TILE, 18);
-    ctx.fillStyle = "#fff"; ctx.font = "11px monospace"; ctx.textAlign = "left"; ctx.textBaseline = "top";
-    ctx.fillText("E/Space attack · C catch · ↓ off bottom edge to leave Wilds", 6, ROWS * TILE - 14);
+
+    // Floating popups
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    popups = popups.filter(p => now - p.born < 900);
+    for (const p of popups) {
+      const age = (now - p.born) / 900;
+      const y = p.y - age * 30;
+      ctx.globalAlpha = 1 - age;
+      ctx.font = "bold 16px monospace";
+      ctx.fillStyle = "#000";
+      ctx.fillText(p.text, p.x + 1, y + 1);
+      ctx.fillStyle = p.color;
+      ctx.fillText(p.text, p.x, y);
+      ctx.globalAlpha = 1;
+    }
+
+    // Bottom banner with hint
+    const w = COLS * TILE;
+    ctx.fillStyle = "rgba(0,0,0,.6)";
+    ctx.fillRect(0, ROWS * TILE - 26, w, 26);
+    ctx.fillStyle = "#ffd84d";
+    ctx.font = "bold 13px monospace"; ctx.textAlign = "left"; ctx.textBaseline = "top";
+    ctx.fillText("E/Space: attack  ·  C: catch  ·  walk off bottom edge to leave Wilds", 10, ROWS * TILE - 22);
   }
 
   return { enter, leave, isActive, attack, tryCatch, tick, render, spawn };
