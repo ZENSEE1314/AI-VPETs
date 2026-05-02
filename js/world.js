@@ -1,7 +1,8 @@
 // Top-down tile world: render map, move player, interact with buildings & NPCs.
 window.World = (function () {
-  const TILE = 32;
+  const TILE = 48;
   const COLS = 20, ROWS = 15;
+  let frame = 0; // animation tick (incremented per render)
 
   // Tile codes
   const G = 0; // grass
@@ -257,97 +258,210 @@ window.World = (function () {
 
   function drawTile(x, y, t) {
     const px = x * TILE, py = y * TILE;
-    let fill = "#1a3a1a";
-    if (t === G) fill = "#2c5b2c";
-    else if (t === P) fill = "#a18a5e";
-    else if (t === W) fill = "#1c4470";
-    else if (t === T) fill = "#1a3a1a";
-    else if (t === F) fill = "#5b3a1a";
-    else if (t === S) fill = "#c2a878";
-    else if (t === B) fill = "#5c5066";
-    ctx.fillStyle = fill;
-    ctx.fillRect(px, py, TILE, TILE);
     if (t === G) {
-      // grass speckles
-      ctx.fillStyle = "#234c23";
-      ctx.fillRect(px + 4, py + 6, 2, 2);
-      ctx.fillRect(px + 20, py + 18, 2, 2);
-      ctx.fillRect(px + 12, py + 24, 2, 2);
-    } else if (t === T) {
-      ctx.fillStyle = "#0e2710";
-      ctx.fillRect(px + 4, py + 4, TILE - 8, TILE - 8);
-      ctx.fillStyle = "#3f7a3f";
-      ctx.beginPath();
-      ctx.arc(px + 16, py + 14, 12, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = "#5b3a1a";
-      ctx.fillRect(px + 14, py + 22, 4, 6);
-    } else if (t === F) {
-      ctx.fillStyle = "#7a4a20";
-      for (let i = 0; i < TILE; i += 6) ctx.fillRect(px, py + i, TILE, 1);
+      // soft grass with darker bottom and lighter highlight
+      const grad = ctx.createLinearGradient(0, py, 0, py + TILE);
+      grad.addColorStop(0, "#4ea456"); grad.addColorStop(1, "#286a32");
+      ctx.fillStyle = grad; ctx.fillRect(px, py, TILE, TILE);
+      // outline
+      ctx.strokeStyle = "rgba(0,0,0,.18)"; ctx.lineWidth = 1;
+      ctx.strokeRect(px + .5, py + .5, TILE - 1, TILE - 1);
+      // grass tufts (deterministic positions per tile)
+      ctx.fillStyle = "#1d5024";
+      const seed = (x * 31 + y * 17) % 7;
+      ctx.fillRect(px + 6 + seed, py + 12, 2, 5);
+      ctx.fillRect(px + 26 - seed, py + 30, 2, 5);
+      ctx.fillRect(px + 38, py + 18 + seed, 2, 4);
+    } else if (t === P) {
+      // cobble path
+      const grad = ctx.createLinearGradient(0, py, 0, py + TILE);
+      grad.addColorStop(0, "#d8b88a"); grad.addColorStop(1, "#a78858");
+      ctx.fillStyle = grad; ctx.fillRect(px, py, TILE, TILE);
+      ctx.strokeStyle = "rgba(60,30,10,.35)"; ctx.lineWidth = 1;
+      ctx.strokeRect(px + .5, py + .5, TILE - 1, TILE - 1);
+      // little stones
+      ctx.fillStyle = "rgba(110,80,40,.5)";
+      ctx.fillRect(px + 8, py + 12, 6, 4);
+      ctx.fillRect(px + 28, py + 22, 8, 4);
+      ctx.fillRect(px + 14, py + 34, 6, 4);
     } else if (t === W) {
-      ctx.fillStyle = "#2563a0";
-      ctx.fillRect(px + 4, py + 8, 8, 2);
-      ctx.fillRect(px + 18, py + 20, 8, 2);
+      const grad = ctx.createLinearGradient(0, py, 0, py + TILE);
+      grad.addColorStop(0, "#3a86c8"); grad.addColorStop(1, "#1d4a82");
+      ctx.fillStyle = grad; ctx.fillRect(px, py, TILE, TILE);
+      ctx.fillStyle = "rgba(255,255,255,.35)";
+      const off = Math.sin(frame * 0.05 + x + y) * 2;
+      ctx.fillRect(px + 8, py + 14 + off, 14, 2);
+      ctx.fillRect(px + 26, py + 30 - off, 12, 2);
+    } else if (t === T) {
+      // grass under
+      ctx.fillStyle = "#286a32"; ctx.fillRect(px, py, TILE, TILE);
+      // tree trunk
+      ctx.fillStyle = "#5a3a18";
+      ctx.fillRect(px + 21, py + 28, 6, 14);
+      ctx.fillStyle = "#3a2510";
+      ctx.fillRect(px + 21, py + 28, 6, 2);
+      // canopy (3-circle puff)
+      const sway = Math.sin(frame * 0.04 + x * 0.7) * 1.5;
+      ctx.fillStyle = "#1d5024";
+      ctx.beginPath(); ctx.arc(px + 24 + sway, py + 22, 16, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#2f7a3a";
+      ctx.beginPath(); ctx.arc(px + 18 + sway, py + 18, 11, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(px + 30 + sway, py + 20, 10, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#52a85f";
+      ctx.beginPath(); ctx.arc(px + 22 + sway, py + 14, 6, 0, Math.PI * 2); ctx.fill();
+    } else if (t === F) {
+      // tilled soil rows
+      const grad = ctx.createLinearGradient(0, py, 0, py + TILE);
+      grad.addColorStop(0, "#8c5a26"); grad.addColorStop(1, "#5a3514");
+      ctx.fillStyle = grad; ctx.fillRect(px, py, TILE, TILE);
+      ctx.fillStyle = "rgba(40,20,5,.4)";
+      for (let i = 0; i < TILE; i += 8) ctx.fillRect(px, py + i + 2, TILE, 1);
+      ctx.strokeStyle = "rgba(20,10,0,.4)";
+      ctx.strokeRect(px + .5, py + .5, TILE - 1, TILE - 1);
+    } else if (t === S) {
+      ctx.fillStyle = "#dac28e"; ctx.fillRect(px, py, TILE, TILE);
     } else if (t === B) {
-      ctx.fillStyle = "#36304a";
-      ctx.fillRect(px + 2, py + 2, TILE - 4, TILE - 4);
+      // building floor / wall stone
+      const grad = ctx.createLinearGradient(0, py, 0, py + TILE);
+      grad.addColorStop(0, "#9d8fbb"); grad.addColorStop(1, "#5a4d78");
+      ctx.fillStyle = grad; ctx.fillRect(px, py, TILE, TILE);
+      ctx.strokeStyle = "rgba(0,0,0,.35)";
+      ctx.strokeRect(px + 2.5, py + 2.5, TILE - 5, TILE - 5);
+      // little wooden door at the base
+      ctx.fillStyle = "#5b3a1a";
+      ctx.fillRect(px + 18, py + TILE - 16, 12, 14);
+      ctx.fillStyle = "#ffd84d";
+      ctx.fillRect(px + 27, py + TILE - 9, 1, 2);
+      // roof line
+      ctx.fillStyle = "#c84850";
+      ctx.fillRect(px + 4, py + 4, TILE - 8, 6);
     }
+  }
+
+  function drawShadow(cx, cy) {
+    ctx.fillStyle = "rgba(0,0,0,.32)";
+    ctx.beginPath(); ctx.ellipse(cx, cy, 14, 5, 0, 0, Math.PI * 2); ctx.fill();
+  }
+
+  function drawNamePlate(cx, cy, text, color = "#ffd84d") {
+    ctx.font = "bold 11px monospace";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    const w = ctx.measureText(text).width + 10;
+    ctx.fillStyle = "rgba(0,0,0,.55)";
+    ctx.fillRect(cx - w / 2, cy - 8, w, 16);
+    ctx.fillStyle = color;
+    ctx.fillText(text, cx, cy);
   }
 
   function drawPOIs() {
     if (zone !== "town") return;
-    ctx.font = "20px serif";
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
     for (const p of TOWN_POIS) {
-      ctx.fillText(p.emoji, p.x * TILE + TILE / 2, p.y * TILE + TILE / 2);
-      // label below
-      ctx.fillStyle = "#dde";
-      ctx.font = "9px monospace";
-      ctx.fillText(p.name, p.x * TILE + TILE / 2, p.y * TILE + TILE - 3);
-      ctx.font = "20px serif";
+      const cx = p.x * TILE + TILE / 2, cy = p.y * TILE + TILE / 2;
+      // building emoji big
+      ctx.font = "36px serif";
+      ctx.fillText(p.emoji, cx, cy - 4);
+      // golden nameplate above the building
+      drawNamePlate(cx, p.y * TILE - 2, p.name);
     }
   }
 
   function drawNPCs() {
     if (zone !== "town") return;
-    ctx.font = "18px serif";
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
     for (const n of NPCS_POS) {
       const data = DATA.NPCS.find(d => d.id === n.id);
       if (!data) continue;
-      ctx.fillText(data.emoji, n.x * TILE + TILE / 2, n.y * TILE + TILE / 2);
+      const cx = n.x * TILE + TILE / 2, cy = n.y * TILE + TILE / 2;
+      drawShadow(cx, cy + TILE / 2 - 3);
+      ctx.font = "30px serif";
+      const bob = Math.sin((frame + n.x * 7) * 0.06) * 1.5;
+      ctx.fillText(data.emoji, cx, cy + bob);
+      // tiny name tag
+      drawNamePlate(cx, n.y * TILE - 2, data.name, "#ffe9aa");
+      // chat bubble dot for interactable
+      if (Math.abs(player.x - n.x) + Math.abs(player.y - n.y) <= 1) {
+        ctx.fillStyle = "#ffd84d";
+        ctx.font = "bold 14px monospace";
+        ctx.fillText("!", cx + 14, cy - TILE / 2 - 4 + Math.sin(frame * 0.2) * 2);
+      }
     }
   }
 
   function drawPlayer() {
     const px = player.x * TILE, py = player.y * TILE;
+    const cx = px + TILE / 2, cy = py + TILE / 2;
     const costume = State.state.costume ? DATA.COSTUMES[State.state.costume] : null;
+    const bob = Math.sin(frame * 0.12) * 2;
+
+    drawShadow(cx, py + TILE - 3);
+
     if (costume) {
-      // shadow
-      ctx.fillStyle = "rgba(0,0,0,.3)";
-      ctx.beginPath(); ctx.ellipse(px + TILE / 2, py + TILE - 3, 9, 3, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.font = "24px serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillText(costume.emoji, px + TILE / 2, py + TILE / 2);
+      ctx.font = "36px serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(costume.emoji, cx, cy + bob);
     } else {
-      ctx.fillStyle = "#ffd76a";
-      ctx.fillRect(px + 8, py + 10, 16, 18);
+      // chunky chibi body — head + tunic + boots
+      const flip = player.facing === "left" ? -1 : 1;
+      const eyeOffX = player.facing === "left" ? -3 : player.facing === "right" ? 3 : 0;
+      const eyeOffY = player.facing === "up" ? -2 : 0;
+
+      // legs / boots
+      ctx.fillStyle = "#3a2810";
+      ctx.fillRect(cx - 9, cy + 14 + bob, 7, 8);
+      ctx.fillRect(cx + 2, cy + 14 + bob, 7, 8);
+      // tunic body
+      const grad = ctx.createLinearGradient(0, cy - 4 + bob, 0, cy + 18 + bob);
+      grad.addColorStop(0, "#3aa6ff"); grad.addColorStop(1, "#1a4faa");
+      ctx.fillStyle = grad;
+      ctx.fillRect(cx - 11, cy - 4 + bob, 22, 18);
+      ctx.fillStyle = "#ffd84d";
+      ctx.fillRect(cx - 11, cy + 9 + bob, 22, 2); // belt
+      ctx.fillStyle = "#ffd84d";
+      ctx.fillRect(cx - 1, cy - 2 + bob, 2, 11); // tunic centerline
+      // arms
       ctx.fillStyle = "#ffe1b3";
-      ctx.fillRect(px + 10, py + 4, 12, 10);
-      ctx.fillStyle = "#000";
-      let fx = px + 16, fy = py + 9;
-      if (player.facing === "left") fx = px + 12;
-      if (player.facing === "right") fx = px + 20;
-      if (player.facing === "up") fy = py + 6;
-      if (player.facing === "down") fy = py + 12;
-      ctx.fillRect(fx - 1, fy - 1, 2, 2);
+      ctx.fillRect(cx - 14, cy - 1 + bob, 4, 12);
+      ctx.fillRect(cx + 10, cy - 1 + bob, 4, 12);
+      // head (round)
+      ctx.fillStyle = "#ffe1b3";
+      ctx.beginPath(); ctx.arc(cx, cy - 12 + bob, 9, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "rgba(0,0,0,.25)"; ctx.lineWidth = 1; ctx.stroke();
+      // hair
+      ctx.fillStyle = "#7a4a18";
+      ctx.beginPath(); ctx.arc(cx, cy - 16 + bob, 9, Math.PI, Math.PI * 2); ctx.fill();
+      ctx.fillRect(cx - 9, cy - 16 + bob, 18, 4);
+      // eyes
+      ctx.fillStyle = "#1a1024";
+      ctx.fillRect(cx - 4 + eyeOffX, cy - 12 + bob + eyeOffY, 2, 2);
+      ctx.fillRect(cx + 2 + eyeOffX, cy - 12 + bob + eyeOffY, 2, 2);
+      // mouth
+      ctx.fillStyle = "#a04040";
+      ctx.fillRect(cx - 1 + eyeOffX, cy - 7 + bob, 2, 1);
+      // weapon when active pet has one
+      const ap = State.state.pet;
+      if (ap && ap.weapon) {
+        ctx.strokeStyle = "#cccccc"; ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(cx + 12 * flip, cy + 6 + bob);
+        ctx.lineTo(cx + 22 * flip, cy - 6 + bob);
+        ctx.stroke();
+      }
+      void flip;
     }
+    // Active-pet companion trailing in town
     if (State.state.pet && zone === "town") {
       const sp = DATA.SPECIES[State.state.pet.species];
       if (sp) {
-        ctx.font = "14px serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-        ctx.fillText(sp.emoji.slice(-2), px + TILE / 2 + 8, py + TILE - 4);
+        ctx.font = "20px serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        const px2 = cx + 18, py2 = py + TILE - 6 + Math.sin(frame * 0.15 + 1) * 1.5;
+        drawShadow(px2, py + TILE - 2);
+        ctx.fillText(sp.emoji.slice(-2), px2, py2);
       }
+    }
+    // Player nameplate + level
+    if (State.state.pet) {
+      drawNamePlate(cx, py - 6, `Lv${State.state.pet.level} ${State.state.pet.name}`);
     }
   }
 
@@ -359,15 +473,17 @@ window.World = (function () {
     else if (npc) hint = `Press E to talk to ${npc.name}`;
     else if (poi) hint = `Press E: ${poi.name}`;
     if (!hint) return;
+    const w = COLS * TILE;
     ctx.fillStyle = "rgba(0,0,0,.6)";
-    ctx.fillRect(0, 0, COLS * TILE, 18);
-    ctx.fillStyle = "#fff";
-    ctx.font = "11px monospace";
+    ctx.fillRect(0, 0, w, 26);
+    ctx.fillStyle = "#ffd84d";
+    ctx.font = "bold 14px monospace";
     ctx.textAlign = "left"; ctx.textBaseline = "top";
-    ctx.fillText(hint, 6, 4);
+    ctx.fillText(hint, 10, 6);
   }
 
   function render() {
+    frame++;
     for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) drawTile(x, y, map.tiles[y][x]);
     drawPOIs();
     drawNPCs();
