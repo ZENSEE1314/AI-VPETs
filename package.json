@@ -1,0 +1,12 @@
+{
+  "name": "pet-world",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Top-down 2D pet world game (HTML5 canvas, vanilla JS).",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
