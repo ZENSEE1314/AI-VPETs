@@ -366,6 +366,12 @@ window.World = (function () {
     }
   }
 
+  function npcRole(data) {
+    if (data.trade?.sells) return { label: "Vendor",  color: "#7cffb1", icon: "🛒" };
+    if (data.trade?.buys)  return { label: "Buyer",   color: "#ffa84d", icon: "💰" };
+    return { label: "Trader", color: "#9bc3ff", icon: "💬" };
+  }
+
   function drawNPCs() {
     if (zone !== "town") return;
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
@@ -373,17 +379,81 @@ window.World = (function () {
       const data = DATA.NPCS.find(d => d.id === n.id);
       if (!data) continue;
       const cx = n.x * TILE + TILE / 2, cy = n.y * TILE + TILE / 2;
-      drawShadow(cx, cy + TILE / 2 - 3);
-      ctx.font = "30px serif";
-      const bob = Math.sin((frame + n.x * 7) * 0.06) * 1.5;
+      const role = npcRole(data);
+      const adjacent = Math.abs(player.x - n.x) + Math.abs(player.y - n.y) <= 1;
+      const pulse = (Math.sin(frame * 0.08) + 1) / 2; // 0..1
+
+      // Glowing platform/rune ring on the ground (color-coded by role).
+      const ringR = 18 + pulse * 4 + (adjacent ? 6 : 0);
+      const ringY = cy + TILE / 2 - 6;
+      // outer soft glow
+      const grad = ctx.createRadialGradient(cx, ringY, 2, cx, ringY, ringR + 6);
+      grad.addColorStop(0, role.color + "cc");
+      grad.addColorStop(0.6, role.color + "33");
+      grad.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.ellipse(cx, ringY, ringR + 6, (ringR + 6) * 0.45, 0, 0, Math.PI * 2); ctx.fill();
+      // ring outline
+      ctx.strokeStyle = role.color;
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.ellipse(cx, ringY, ringR, ringR * 0.4, 0, 0, Math.PI * 2); ctx.stroke();
+      // inner ring
+      ctx.strokeStyle = "rgba(255,255,255,.55)";
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.ellipse(cx, ringY, ringR * 0.7, ringR * 0.28, 0, 0, Math.PI * 2); ctx.stroke();
+
+      // Body (bigger, with subtle glow halo)
+      const bob = Math.sin((frame + n.x * 7) * 0.06) * 2;
+      ctx.save();
+      ctx.shadowColor = role.color; ctx.shadowBlur = 14;
+      ctx.font = "44px serif";
+      ctx.fillStyle = "#fff";
       ctx.fillText(data.emoji, cx, cy + bob);
-      // tiny name tag
-      drawNamePlate(cx, n.y * TILE - 2, data.name, "#ffe9aa");
-      // chat bubble dot for interactable
-      if (Math.abs(player.x - n.x) + Math.abs(player.y - n.y) <= 1) {
+      ctx.restore();
+
+      // Persistent shop icon floating overhead
+      const iconY = n.y * TILE - 20 + Math.sin(frame * 0.12 + n.x) * 2;
+      // bubble background
+      ctx.fillStyle = "rgba(255,255,255,.95)";
+      ctx.beginPath(); ctx.arc(cx, iconY, 11, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = role.color; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(cx, iconY, 11, 0, Math.PI * 2); ctx.stroke();
+      // little tail
+      ctx.fillStyle = "rgba(255,255,255,.95)";
+      ctx.beginPath();
+      ctx.moveTo(cx - 3, iconY + 9);
+      ctx.lineTo(cx, iconY + 14);
+      ctx.lineTo(cx + 3, iconY + 9);
+      ctx.closePath(); ctx.fill();
+      ctx.font = "14px serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillStyle = "#000";
+      ctx.fillText(role.icon, cx, iconY + 1);
+
+      // Big nameplate with role
+      const labelText = `${data.name} · ${role.label}`;
+      ctx.font = "bold 12px monospace";
+      const w = ctx.measureText(labelText).width + 14;
+      const nx = cx - w / 2, ny = n.y * TILE + TILE - 4;
+      ctx.fillStyle = "rgba(0,0,0,.7)";
+      ctx.fillRect(nx, ny - 1, w, 16);
+      ctx.strokeStyle = role.color; ctx.lineWidth = 1;
+      ctx.strokeRect(nx + .5, ny - .5, w - 1, 16);
+      ctx.fillStyle = role.color;
+      ctx.fillText(labelText, cx, ny + 7);
+
+      // Strong "!" indicator + ring pop when adjacent
+      if (adjacent) {
         ctx.fillStyle = "#ffd84d";
-        ctx.font = "bold 14px monospace";
-        ctx.fillText("!", cx + 14, cy - TILE / 2 - 4 + Math.sin(frame * 0.2) * 2);
+        ctx.font = "bold 18px monospace";
+        const yy = iconY - 18 + Math.sin(frame * 0.25) * 3;
+        ctx.fillText("!", cx + 18, yy);
+        // sparkle ring
+        ctx.strokeStyle = "rgba(255,216,77,.85)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(cx, ringY, ringR + 4 + Math.sin(frame * 0.15) * 2, 0, Math.PI * 2 * pulse);
+        ctx.stroke();
       }
     }
   }
