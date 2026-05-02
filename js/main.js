@@ -39,6 +39,7 @@
         if (!UI.isDialogOpen() && !Arena.isActive()) World.passTime(1);
       }
       if (Arena.isActive() && !UI.isDialogOpen()) Arena.tick(dt);
+      FX.tick(dt);
       World.render();
       UI.refreshHUD();
       requestAnimationFrame(frame);

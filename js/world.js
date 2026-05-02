@@ -397,9 +397,11 @@ window.World = (function () {
     drawShadow(cx, py + TILE - 3);
 
     if (costume) {
-      ctx.font = "36px serif";
+      ctx.font = "40px serif";
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.fillText(costume.emoji, cx, cy + bob);
+      // sparkles around costume
+      if (frame % 28 === 0) FX.spawn({ x: cx + (Math.random() - .5) * 30, y: cy + bob, color: "rgba(255,200,255,.9)", size: 2, maxLife: 800, kind: "twinkle" });
     } else {
       // chunky chibi body — head + tunic + boots
       const flip = player.facing === "left" ? -1 : 1;
@@ -410,55 +412,108 @@ window.World = (function () {
       ctx.fillStyle = "#3a2810";
       ctx.fillRect(cx - 9, cy + 14 + bob, 7, 8);
       ctx.fillRect(cx + 2, cy + 14 + bob, 7, 8);
-      // tunic body
+      ctx.fillStyle = "rgba(0,0,0,.3)";
+      ctx.fillRect(cx - 9, cy + 21 + bob, 7, 1);
+      ctx.fillRect(cx + 2, cy + 21 + bob, 7, 1);
+
+      // tunic body — gradient
       const grad = ctx.createLinearGradient(0, cy - 4 + bob, 0, cy + 18 + bob);
-      grad.addColorStop(0, "#3aa6ff"); grad.addColorStop(1, "#1a4faa");
+      grad.addColorStop(0, "#5dbcff"); grad.addColorStop(1, "#1a4faa");
       ctx.fillStyle = grad;
       ctx.fillRect(cx - 11, cy - 4 + bob, 22, 18);
+      // tunic outline
+      ctx.strokeStyle = "rgba(0,0,0,.4)"; ctx.lineWidth = 1;
+      ctx.strokeRect(cx - 11.5, cy - 4 + bob, 22, 18);
+      // tunic shoulder pads
       ctx.fillStyle = "#ffd84d";
-      ctx.fillRect(cx - 11, cy + 9 + bob, 22, 2); // belt
+      ctx.fillRect(cx - 12, cy - 4 + bob, 4, 4);
+      ctx.fillRect(cx + 8,  cy - 4 + bob, 4, 4);
+      // belt
+      ctx.fillStyle = "#7a4a18";
+      ctx.fillRect(cx - 11, cy + 8 + bob, 22, 4);
       ctx.fillStyle = "#ffd84d";
-      ctx.fillRect(cx - 1, cy - 2 + bob, 2, 11); // tunic centerline
+      ctx.fillRect(cx - 2, cy + 9 + bob, 4, 2); // belt buckle
+      // tunic centerline
+      ctx.fillStyle = "#ffd84d";
+      ctx.fillRect(cx - 1, cy - 2 + bob, 2, 11);
+
       // arms
       ctx.fillStyle = "#ffe1b3";
       ctx.fillRect(cx - 14, cy - 1 + bob, 4, 12);
       ctx.fillRect(cx + 10, cy - 1 + bob, 4, 12);
+
       // head (round)
       ctx.fillStyle = "#ffe1b3";
-      ctx.beginPath(); ctx.arc(cx, cy - 12 + bob, 9, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = "rgba(0,0,0,.25)"; ctx.lineWidth = 1; ctx.stroke();
-      // hair
+      ctx.beginPath(); ctx.arc(cx, cy - 12 + bob, 10, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "rgba(0,0,0,.3)"; ctx.lineWidth = 1; ctx.stroke();
+
+      // ear (faces sideways)
+      if (player.facing === "left" || player.facing === "right") {
+        ctx.fillStyle = "#ffe1b3";
+        ctx.beginPath(); ctx.arc(cx - 9 * flip, cy - 12 + bob, 2, 0, Math.PI * 2); ctx.fill();
+      }
+
+      // hair (cute swept fringe)
       ctx.fillStyle = "#7a4a18";
-      ctx.beginPath(); ctx.arc(cx, cy - 16 + bob, 9, Math.PI, Math.PI * 2); ctx.fill();
-      ctx.fillRect(cx - 9, cy - 16 + bob, 18, 4);
-      // eyes
-      ctx.fillStyle = "#1a1024";
-      ctx.fillRect(cx - 4 + eyeOffX, cy - 12 + bob + eyeOffY, 2, 2);
-      ctx.fillRect(cx + 2 + eyeOffX, cy - 12 + bob + eyeOffY, 2, 2);
-      // mouth
-      ctx.fillStyle = "#a04040";
-      ctx.fillRect(cx - 1 + eyeOffX, cy - 7 + bob, 2, 1);
+      ctx.beginPath(); ctx.arc(cx, cy - 16 + bob, 10, Math.PI, Math.PI * 2); ctx.fill();
+      ctx.fillRect(cx - 10, cy - 16 + bob, 20, 4);
+      // hair fringe strands
+      ctx.fillStyle = "#5a330e";
+      ctx.fillRect(cx - 7, cy - 14 + bob, 3, 4);
+      ctx.fillRect(cx + 4, cy - 14 + bob, 3, 4);
+
+      // big anime eyes (white + iris + pupil)
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(cx - 5 + eyeOffX, cy - 13 + bob + eyeOffY, 3, 4);
+      ctx.fillRect(cx + 2 + eyeOffX, cy - 13 + bob + eyeOffY, 3, 4);
+      ctx.fillStyle = "#1c2960";
+      ctx.fillRect(cx - 4 + eyeOffX, cy - 12 + bob + eyeOffY, 2, 3);
+      ctx.fillRect(cx + 3 + eyeOffX, cy - 12 + bob + eyeOffY, 2, 3);
+      // sparkle highlight (blink occasionally)
+      const blink = Math.sin(frame * 0.04) > 0.96;
+      if (!blink) {
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(cx - 4 + eyeOffX, cy - 12 + bob + eyeOffY, 1, 1);
+        ctx.fillRect(cx + 3 + eyeOffX, cy - 12 + bob + eyeOffY, 1, 1);
+      }
+
+      // rosy cheeks
+      ctx.fillStyle = "rgba(255,120,160,.55)";
+      ctx.beginPath(); ctx.arc(cx - 5, cy - 9 + bob, 1.6, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(cx + 5, cy - 9 + bob, 1.6, 0, Math.PI * 2); ctx.fill();
+
+      // little smile
+      ctx.strokeStyle = "#a04040"; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(cx + eyeOffX * 0.4, cy - 8 + bob, 1.6, 0, Math.PI); ctx.stroke();
+
       // weapon when active pet has one
       const ap = State.state.pet;
       if (ap && ap.weapon) {
-        ctx.strokeStyle = "#cccccc"; ctx.lineWidth = 3;
+        ctx.strokeStyle = "#e8e8e8"; ctx.lineWidth = 3;
         ctx.beginPath();
         ctx.moveTo(cx + 12 * flip, cy + 6 + bob);
         ctx.lineTo(cx + 22 * flip, cy - 6 + bob);
         ctx.stroke();
+        ctx.strokeStyle = "#ffd84d"; ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(cx + 11 * flip, cy + 7 + bob);
+        ctx.lineTo(cx + 14 * flip, cy + 4 + bob);
+        ctx.stroke();
       }
       void flip;
     }
+
     // Active-pet companion trailing in town
     if (State.state.pet && zone === "town") {
       const sp = DATA.SPECIES[State.state.pet.species];
       if (sp) {
-        ctx.font = "20px serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-        const px2 = cx + 18, py2 = py + TILE - 6 + Math.sin(frame * 0.15 + 1) * 1.5;
+        ctx.font = "22px serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        const px2 = cx + 20, py2 = py + TILE - 4 + Math.sin(frame * 0.15 + 1) * 1.5;
         drawShadow(px2, py + TILE - 2);
         ctx.fillText(sp.emoji.slice(-2), px2, py2);
       }
     }
+
     // Player nameplate + level
     if (State.state.pet) {
       drawNamePlate(cx, py - 6, `Lv${State.state.pet.level} ${State.state.pet.name}`);
@@ -484,11 +539,20 @@ window.World = (function () {
 
   function render() {
     frame++;
+    const w = COLS * TILE, h = ROWS * TILE;
     for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) drawTile(x, y, map.tiles[y][x]);
+    // Drifting clouds and twinkles drawn over the world tiles for atmosphere.
+    FX.drawClouds(ctx, frame, w, h);
+    FX.drawStars(ctx, frame, w);
     drawPOIs();
     drawNPCs();
     if (zone === "wilds") Arena.render(ctx);
     drawPlayer();
+    // Ambient sparkles in town (random)
+    if (zone === "town" && Math.random() < 0.08) {
+      FX.ambient(Math.random() * w, Math.random() * h * 0.7);
+    }
+    FX.render(ctx);
     drawHints();
 
     // Day/night tint
@@ -498,7 +562,7 @@ window.World = (function () {
     else if (m < 7 * 60 || m > 19 * 60) dark = 0.2;
     if (dark > 0) {
       ctx.fillStyle = `rgba(20,30,80,${dark})`;
-      ctx.fillRect(0, 0, COLS * TILE, ROWS * TILE);
+      ctx.fillRect(0, 0, w, h);
     }
   }
 
